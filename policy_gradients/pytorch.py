@@ -13,7 +13,7 @@ from typing import Tuple, List
 
 # %% definitions
 def construct_policy(env: gym.Env, device: torch.device) -> nn.Module:
-    """Given an environment, cosntruct a policy."""
+    """Given an environment, construct a policy."""
     state_space = env.observation_space.shape[0]
     hidden_units = 20
     action_space = env.action_space.n
@@ -81,11 +81,8 @@ def improve_policy(policy: nn.Module, env: gym.Env, device: torch.device,
     for _ in range(episodes):
         rewards, log_probs = play_episode(policy, env, device)
         returns = normalize(discount(rewards, gamma=0.99))
-        policy_loss: List[Tensor] = []
-        for log_prob, r in zip(log_probs, returns):
-            policy_loss.append(-log_prob * r)
         optimizer.zero_grad()
-        torch.cat(policy_loss).sum().backward()
+        (-log_probs.squeeze() * returns.to(device)).sum().backward()
         optimizer.step()
 
 
