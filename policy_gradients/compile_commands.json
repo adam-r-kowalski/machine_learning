@@ -1,7 +1,0 @@
-[
-{
-  "directory": "/Users/adamkowalski/src/reinforcement_learning/policy_gradients/cpptorch/build",
-  "command": "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/c++   -I../lib/pybind11/include -I/Users/adamkowalski/miniconda3/include/python3.7m -isystem /Users/adamkowalski/pytorch/torch/include -isystem /Users/adamkowalski/pytorch/torch/include/torch/csrc/api/include -isystem /usr/local/cuda/include    -std=c++14 -std=c++11 -std=gnu++1z -o CMakeFiles/cpptorch.dir/src/main.cc.o -c /Users/adamkowalski/src/reinforcement_learning/policy_gradients/cpptorch/src/main.cc",
-  "file": "/Users/adamkowalski/src/reinforcement_learning/policy_gradients/cpptorch/src/main.cc"
-}
-]
