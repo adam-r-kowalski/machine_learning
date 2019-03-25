@@ -48,6 +48,7 @@ func selectAction(_ policy: Policy, _ state: Tensor<Float>,
   return (action, log(probs[0][action]))
 }
 
+@differentiable
 func playEpisode(_ policy: Policy, _ env: PythonObject,
                  in context: Context, render shouldRender: Bool = false)
                  -> (Tensor<Float>, Tensor<Float>) {
@@ -89,9 +90,9 @@ func improvePolicy(_ policy: inout Policy, _ env: PythonObject,
                    _ optimizer: Adam<Policy, Float>,
                    in context: Context, episodes: Int) {
   for _ in 1...episodes {
-    let (rewards, logProbs) = playEpisode(policy, env, in: context)
-    let returns = normalize(discount(rewards, gamma: 0.99))
     let gradients = gradient(at: policy) { model -> Tensor<Float> in
+      let (rewards, logProbs) = playEpisode(model, env, in: context)
+      let returns = normalize(discount(rewards, gamma: 0.99))
       return (-logProbs * returns).sum()
     }
     optimizer.update(&policy.allDifferentiableVariables, along: gradients)
@@ -109,4 +110,3 @@ improvePolicy(&policy, env, optimizer, in: context, episodes: 100)
 
 let (rewards, _) = playEpisode(policy, env, in: context)
 rewards.sum()
-
