@@ -14,7 +14,7 @@ class FLAGS:
     """Flags."""
 
     batch_size = 32
-    shuffle_buffer_size = 1000
+    shuffle_buffer_size = 500
     data_root = pathlib.Path("chest_xray")
 
 
@@ -53,29 +53,70 @@ def dataset(path: str) -> Dataset:
     return dataset, len(image_paths)
 
 
-# %% training
+# %% data sets
 train_dataset, train_count = dataset("train")
 val_dataset, val_count = dataset("val")
 test_dataset, test_count = dataset("test")
 
-mobile_net = tf.keras.applications.MobileNetV2(
+
+# %% model
+xception = tf.keras.applications.Xception(
     input_shape=(192, 192, 3), include_top=False)
-mobile_net.trainable = False
+xception.trainable = False
 
 model = tf.keras.Sequential([
-    mobile_net,
-    tf.keras.layers.GlobalAveragePooling2D(),
-    tf.keras.layers.Dense(1)])
+    xception,
+    tf.keras.layers.Conv2D(filters=32, kernel_size=(3, 3)),
+    tf.keras.layers.BatchNormalization(),
+    tf.keras.layers.ReLU(),
+    tf.keras.layers.Dropout(0.5),
 
+    tf.keras.layers.Conv2D(filters=64, kernel_size=(3, 3)),
+    tf.keras.layers.BatchNormalization(),
+    tf.keras.layers.ReLU(),
+    tf.keras.layers.Dropout(0.5),
+
+    tf.keras.layers.GlobalAveragePooling2D(),
+    tf.keras.layers.Dense(1, tf.keras.activations.sigmoid)])
+
+
+# %% training
 model.compile(optimizer=tf.keras.optimizers.Adam(),
               loss=tf.keras.losses.binary_crossentropy,
-              metrics=[tf.keras.metrics.Accuracy()])
+              metrics=["accuracy"])
+
 
 model.fit(train_dataset,
           epochs=3,
           steps_per_epoch=train_count // FLAGS.batch_size,
           validation_data=val_dataset,
-          validation_steps=val_count // FLAGS.batch_size,
+          validation_steps=1,
           callbacks=[
             tf.keras.callbacks.ModelCheckpoint('checkpoints/cp.ckpt'),
             tf.keras.callbacks.TensorBoard()])
+
+model.evaluate(test_dataset, steps=test_count // FLAGS.batch_size)
+
+
+# %% fine tuning
+xception.trainable = True
+
+for layer in xception.layers[:100]:
+    layer.trainable = False
+
+
+model.compile(optimizer=tf.keras.optimizers.Adam(),
+              loss=tf.keras.losses.binary_crossentropy,
+              metrics=["accuracy"])
+
+
+model.fit(train_dataset,
+          epochs=3,
+          steps_per_epoch=train_count // FLAGS.batch_size,
+          validation_data=val_dataset,
+          validation_steps=1,
+          callbacks=[
+            tf.keras.callbacks.ModelCheckpoint('checkpoints/cp.ckpt'),
+            tf.keras.callbacks.TensorBoard()])
+
+model.evaluate(test_dataset, steps=test_count // FLAGS.batch_size)

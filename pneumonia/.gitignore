@@ -1,2 +1,4 @@
 chest_xray/
 .mypy_cache/
+checkpoints/
+logs/
