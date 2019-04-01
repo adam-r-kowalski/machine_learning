@@ -11,7 +11,7 @@ device = cpu
 label_names = sort(readdir(joinpath(data_root, "train")))
 label_to_index = Dict(name => index-1 for (index, name) in enumerate(label_names))
 
-load_and_prepocess_image(path::String) =
+load_and_preprocess_image(path::String) =
     @> path begin
         load()
         imresize(224, 224)
@@ -28,7 +28,7 @@ function dataset(path::String)
     image_labels = [label_to_index[basename(dirname(path))]
                     for path in image_paths]
     images = @> begin
-        (load_and_prepocess_image(path) for path in image_paths)
+        (load_and_preprocess_image(path) for path in image_paths)
         partition(batch_size)
         batches -> (device(cat(batch..., dims=4)) for batch in batches)
     end
