@@ -79,6 +79,29 @@ def train_model(model: nn.Module, optimizer: optim.Optimizer, epochs=3):
             print(f"{phase} Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
 
 
+# %% evaluating
+def eval_model(model: nn.Module):
+    """Eval model."""
+    model.eval()
+    running_loss = 0.0
+    running_corrects = torch.tensor(0)
+
+    for inputs, labels in dataloaders["test"]:
+        inputs = inputs.to(FLAGS.device)
+        labels = labels.to(FLAGS.device).float()
+
+        with torch.set_grad_enabled(False):
+            preds = torch.sigmoid(model(inputs)).squeeze()
+            loss = criterion(preds, labels)
+
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += sum(torch.round(preds) == labels.data)
+
+    epoch_loss = running_loss / dataset_sizes["test"]
+    epoch_acc = running_corrects.double() / dataset_sizes["test"]
+
+    print(f"test Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
+
 # %% model
 model = models.resnet18(pretrained=True)
 
@@ -92,3 +115,5 @@ model.to(FLAGS.device)
 optimizer = optim.Adam(model.parameters())
 
 train_model(model, optimizer)
+
+eval_model(model)
