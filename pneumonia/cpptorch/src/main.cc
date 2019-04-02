@@ -22,9 +22,12 @@ const auto root_dir =
 const auto label_to_index =
     std::map<fs::path, int>{{"NORMAL", 0}, {"PNEUMONIA", 1}};
 
-const auto batch_size = 32;
-const auto workers = 8;
+const auto batch_size = 64;
+const auto workers = std::thread::hardware_concurrency();
 const auto phases = {"train", "val", "test"};
+const auto device =
+    torch::kCPU;  // torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
+const auto epochs = 3;
 
 auto load_and_preprocess_image(const fs::path &path) -> torch::Tensor {
   auto image = cv::imread(path.string());
@@ -66,6 +69,40 @@ struct Pneumonia : data::Dataset<Pneumonia> {
 };
 
 template <class... Ts>
+auto train(nn::Sequential &model, torch::optim::Optimizer &optimizer,
+           data::DataLoaderBase<Ts...> &data_loader, size_t size) {
+  model->train();
+
+  std::cout << "training on dataset of size " << size << std::endl;
+
+  auto running_loss = torch::tensor(0.0);
+  auto running_corrects = torch::tensor(0);
+
+  auto i = 1;
+  auto batches = int(size / batch_size);
+
+  for (auto &batch : data_loader) {
+    std::cout << "batch " << i++ << " / " << batches << std::endl;
+
+    const auto images = batch.data.to(device);
+    const auto labels = batch.target.to(device);
+
+    optimizer.zero_grad();
+    const auto predictions = model->forward(images);
+    auto loss = torch::binary_cross_entropy(predictions, labels);
+    loss.backward();
+    optimizer.step();
+
+    running_loss += loss * images.size(0);
+    running_corrects += (torch::round(predictions) == labels).sum();
+  }
+
+  std::cout << "\nepoch loss = " << running_loss.item<double>() / size
+            << "\nepoch accuracy = " << running_corrects.item<double>() / size
+            << std::endl;
+}
+
+template <class... Ts>
 auto eval(nn::Sequential &model, data::DataLoaderBase<Ts...> &data_loader,
           size_t size) {
   model->eval();
@@ -73,32 +110,25 @@ auto eval(nn::Sequential &model, data::DataLoaderBase<Ts...> &data_loader,
   auto running_loss = torch::tensor(0.0);
   auto running_corrects = torch::tensor(0);
 
-  std::cout << "evaluating dataset of size " << size << "\n";
+  std::cout << "evaluating dataset of size " << size << std::endl;
 
   for (auto &batch : data_loader) {
-    std::cout << ".";
+    const auto images = batch.data.to(device);
+    const auto labels = batch.target.to(device);
 
-    const auto predictions = model->forward(batch.data);
-    const auto loss = torch::binary_cross_entropy(predictions, batch.target);
+    const auto predictions = model->forward(images);
+    const auto loss = torch::binary_cross_entropy(predictions, labels);
 
-    running_loss += loss * batch.data.size(0);
-    running_corrects += (torch::round(predictions) == batch.target).sum();
+    running_loss += loss * images.size(0);
+    running_corrects += (torch::round(predictions) == labels).sum();
   }
 
   std::cout << "\nloss = " << running_loss.item<double>() / size
             << "\naccuracy = " << running_corrects.item<double>() / size
-            << "\n";
+            << std::endl;
 }
 
 auto main() -> int {
-  auto model = nn::Sequential(
-      nn::Conv2d(nn::Conv2dOptions(3, 8, {3, 3})), nn::BatchNorm(8),
-      nn::Functional(torch::relu), nn::Conv2d(nn::Conv2dOptions(8, 16, {3, 3})),
-      nn::BatchNorm(16), nn::Functional(torch::relu),
-      nn::Conv2d(nn::Conv2dOptions(16, 32, {3, 3})), nn::BatchNorm(32),
-      nn::Functional(torch::relu), AdaptiveAvgPool2d(), nn::Linear(32, 1),
-      nn::Functional(torch::sigmoid));
-
   const auto train_dataset =
       Pneumonia{root_dir / "train"}.map(data::transforms::Stack());
   const auto train_loader = data::make_data_loader(
@@ -114,7 +144,22 @@ auto main() -> int {
   const auto test_loader = data::make_data_loader(
       test_dataset, data::DataLoaderOptions(batch_size).workers(workers));
 
-  eval(model, *val_loader, *val_dataset.size());
+  auto model = nn::Sequential(
+      nn::Conv2d(nn::Conv2dOptions(3, 8, {3, 3})), nn::BatchNorm(8),
+      nn::Functional(torch::relu), nn::Conv2d(nn::Conv2dOptions(8, 16, {3, 3})),
+      nn::BatchNorm(16), nn::Functional(torch::relu),
+      nn::Conv2d(nn::Conv2dOptions(16, 32, {3, 3})), nn::BatchNorm(32),
+      nn::Functional(torch::relu), AdaptiveAvgPool2d(), nn::Linear(32, 1),
+      nn::Functional(torch::sigmoid));
+  model->to(device);
+
+  auto optimizer = torch::optim::Adam(model->parameters(), /*lr=*/0.01);
+
+  for (auto epoch = 0; epoch < epochs; ++epoch) {
+    train(model, optimizer, *train_loader, *train_dataset.size());
+    eval(model, *val_loader, *val_dataset.size());
+  }
+
   eval(model, *test_loader, *test_dataset.size());
 
   return 0;
