@@ -1,3 +1,3 @@
-[submodule "policy_gradients/cpptorch/lib/pybind11"]
-	path = policy_gradients/cpptorch/lib/pybind11
+[submodule "third_party/pybind11"]
+	path = third_party/pybind11
 	url = https://github.com/pybind/pybind11.git
