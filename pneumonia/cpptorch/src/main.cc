@@ -25,8 +25,7 @@ const auto label_to_index =
 const auto batch_size = 64;
 const auto workers = std::thread::hardware_concurrency();
 const auto phases = {"train", "val", "test"};
-const auto device =
-    torch::kCPU;  // torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
+const auto device = torch::cuda::is_available() ? torch::kCUDA : torch::kCPU;
 const auto epochs = 3;
 
 auto load_and_preprocess_image(const fs::path &path) -> torch::Tensor {
